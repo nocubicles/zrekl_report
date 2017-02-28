@@ -12,6 +12,24 @@ DATA: COLOR TYPE LVC_S_COLO.
 data: key        type salv_s_layout_key.
 Data: i_vbap TYPE STANDARD TABLE OF vbap.
 
+DATA:
+numtab TYPE TABLE OF bapi1003_alloc_values_num WITH HEADER LINE,
+wa_numtab TYPE bapi1003_alloc_values_num,
+chatab TYPE TABLE OF bapi1003_alloc_values_char WITH HEADER LINE,
+curtab TYPE TABLE OF     bapi1003_alloc_values_curr WITH HEADER LINE,
+rettab TYPE table of BAPIRET2,
+i_return TYPE bapiret2,
+      lv_16spaces TYPE string VALUE '                ',
+      lv_15spaces TYPE string VALUE '               ',
+      lv_12spaces TYPE string VALUE '            ',
+      lv_8spaces TYPE string VALUE '        ',
+      lv_9spaces TYPE string VALUE '         ',
+      lv_10spaces TYPE string VALUE '         '.
+
+DATA: lv_objkey(50) TYPE c,
+      lv_matnr type mchb-matnr,
+      lv_charg type mchb-charg.
+
 DATA: itab type standard table of mara,
 i_conftab TYPE TABLE OF CONF_OUT,
 wa_conftab TYPE conf_out,
@@ -74,6 +92,43 @@ TYPES: BEGIN OF ty_rekl_data,
   col   TYPE lvc_col,    " color 1-7
   int   TYPE lvc_int,    " intensified 0-1
   inv   TYPE lvc_inv,
+  Length_01 TYPE i ,
+  no_of_packages TYPE i,
+Width_01  TYPE i,
+Height_01 TYPE i,
+Weight_01 TYPE i,
+Length_02 TYPE i,
+Width_02  TYPE i,
+Height_02 TYPE i,
+Weight_02 TYPE i,
+Length_03 TYPE i,
+Width_03  TYPE i,
+Height_03 TYPE i,
+Weight_03 TYPE i,
+Length_04 TYPE i,
+Width_04  TYPE i,
+Height_04 TYPE i,
+Weight_04 TYPE i,
+Length_05 TYPE i,
+Width_05  TYPE i,
+Height_05 TYPE i,
+Weight_05 TYPE i,
+Length_06 TYPE i,
+Width_06  TYPE i,
+Height_06 TYPE i,
+Weight_06 TYPE i,
+Length_07 TYPE i,
+Width_07  TYPE i,
+Height_07 TYPE i,
+Weight_07 TYPE i,
+Length_08 TYPE i,
+Width_08  TYPE i,
+Height_08 TYPE i,
+Weight_08 TYPE i,
+Length_09 TYPE i,
+Width_09  TYPE i,
+Height_09 TYPE i,
+Weight_09 TYPE i,
 END OF ty_rekl_data.
 
 DATA: wa_rekl_data type ty_rekl_data.
@@ -174,9 +229,6 @@ CLASS automatitic_ALV IMPLEMENTATION.
     SELECT * FROM LIKP INTO WA_LIKP WHERE VBELN = wa_lips-vbeln.
     ENDSELECT.
 
-    CLEAR: wa_mseg, wa_aufk.
-
-
     wa_rekl_data-vbelv = wa_vbap-vbelv.
       wa_rekl_data-createdBy = wa_vbak-ernam.
       wa_rekl_data-shipcond = wa_vbak-vsbed.
@@ -204,16 +256,148 @@ CLASS automatitic_ALV IMPLEMENTATION.
     SELECT * FROM AUFK INTO WA_AUFK WHERE KDAUF = wa_vbap-vbelv AND KDPOS = wa_vbap-posnr.
     ENDSELECT.
 
+     IF NOT wa_aufk IS INITIAL.
+    SELECT * FROM MSEG INTO wa_mseg WHERE AUFNR = wa_aufk-aufnr AND matnr = p_matnr AND bwart = '101'.
+    ENDSELECT.
+    ENDIF.
+
       IF wa_mseg IS  INITIAL.
         wa_rekl_data-prodbatch = 'No batch yet'.
       ELSE.
         wa_rekl_data-prodbatch = wa_mseg-charg.
+
+
+      lv_matnr = p_matnr.
+      lv_charg = wa_mseg-charg.
+
+      CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
+          EXPORTING
+            input  = lv_matnr
+          IMPORTING
+            output = lv_matnr.
+
+
+      IF STRLEN( lv_matnr ) = 3.
+        CONCATENATE lv_matnr lv_15spaces lv_charg INTO lv_objkey RESPECTING BLANKS.
+      ELSEIF STRLEN( lv_matnr ) = 2.
+        CONCATENATE lv_matnr lv_16spaces lv_charg INTO lv_objkey RESPECTING BLANKS.
+      ELSEIF STRLEN( lv_matnr ) = 6.
+        CONCATENATE lv_matnr lv_12spaces lv_charg INTO lv_objkey RESPECTING BLANKS.
+      ELSEIF STRLEN( lv_matnr ) = 10.
+        CONCATENATE lv_matnr lv_8spaces lv_charg INTO lv_objkey RESPECTING BLANKS.
+      ELSEIF STRLEN( lv_matnr ) = 8.
+        CONCATENATE lv_matnr lv_10spaces lv_charg INTO lv_objkey RESPECTING BLANKS.
+      ELSEIF STRLEN( lv_matnr ) = 7.
+        CONCATENATE lv_matnr lv_9spaces lv_charg INTO lv_objkey RESPECTING BLANKS.
+      ELSE.
+        CONCATENATE lv_matnr lv_charg INTO lv_objkey.
+      ENDIF.
+
+      field-symbols:
+        <fs> like line of itab.
+      CALL FUNCTION 'BAPI_OBJCL_GETDETAIL'
+           EXPORTING
+                objectkey        = lv_objkey
+                objecttable      = 'MCH1'
+                classnum         = 'PACK'
+                classtype        = '023'
+                unvaluated_chars = 'X'
+           TABLES
+                allocvaluesnum   = numtab
+                allocvalueschar  = chatab
+                allocvaluescurr  = curtab
+                return           = rettab.
+
+
+ LOOP AT numtab INTO wa_numtab.
+  CASE wa_numtab-charact.
+    WHEN 'NO_OF_PACKAGES'.
+      wa_rekl_data-no_of_packages = wa_numtab-value_from.
+    WHEN 'WIDTH_01'.
+      wa_rekl_data-width_01 = wa_numtab-value_from.
+    WHEN 'HEIGHT_01'.
+      wa_rekl_data-height_01 = wa_numtab-value_from.
+    WHEN 'LENGTH_01'.
+      wa_rekl_data-length_01 = wa_numtab-value_from.
+    WHEN 'WEIGHT_01'.
+      wa_rekl_data-weight_01 = wa_numtab-value_from.
+    WHEN 'WIDTH_02'.
+      wa_rekl_data-width_02 = wa_numtab-value_from.
+    WHEN 'HEIGHT_02'.
+      wa_rekl_data-height_02 = wa_numtab-value_from.
+    WHEN 'LENGTH_02'.
+      wa_rekl_data-Length_02 = wa_numtab-value_from.
+    WHEN 'WEIGHT_02'.
+      wa_rekl_data-Weight_02 = wa_numtab-value_from.
+    WHEN 'WIDTH_03'.
+     wa_rekl_data-width_03 = wa_numtab-value_from.
+    WHEN 'HEIGHT_03'.
+      wa_rekl_data-height_03 = wa_numtab-value_from.
+    WHEN 'LENGTH_03'.
+      wa_rekl_data-Length_03 = wa_numtab-value_from.
+    WHEN 'WEIGHT_03'.
+      wa_rekl_data-Weight_03 = wa_numtab-value_from.
+    WHEN 'WIDTH_04'.
+      wa_rekl_data-width_04 = wa_numtab-value_from.
+    WHEN 'HEIGHT_04'.
+      wa_rekl_data-height_04 = wa_numtab-value_from.
+    WHEN 'LENGTH_04'.
+      wa_rekl_data-Length_04 = wa_numtab-value_from.
+    WHEN 'WEIGHT_04'.
+      wa_rekl_data-Weight_04 = wa_numtab-value_from.
+    WHEN 'WIDTH_05'.
+      wa_rekl_data-width_05 = wa_numtab-value_from.
+    WHEN 'HEIGHT_05'.
+      wa_rekl_data-height_05 = wa_numtab-value_from.
+    WHEN 'LENGTH_05'.
+      wa_rekl_data-Length_05 = wa_numtab-value_from.
+    WHEN 'WEIGHT_05'.
+      wa_rekl_data-Weight_05 = wa_numtab-value_from.
+    WHEN 'WIDTH_06'.
+      wa_rekl_data-width_06 = wa_numtab-value_from.
+    WHEN 'HEIGHT_06'.
+      wa_rekl_data-height_06 = wa_numtab-value_from.
+    WHEN 'LENGTH_06'.
+      wa_rekl_data-Length_06 = wa_numtab-value_from.
+    WHEN 'WEIGHT_06'.
+      wa_rekl_data-Weight_06 = wa_numtab-value_from.
+    WHEN 'WIDTH_07'.
+      wa_rekl_data-width_07 = wa_numtab-value_from.
+    WHEN 'HEIGHT_07'.
+      wa_rekl_data-height_07 = wa_numtab-value_from.
+    WHEN 'LENGTH_07'.
+      wa_rekl_data-Length_07 = wa_numtab-value_from.
+    WHEN 'WEIGHT_07'.
+      wa_rekl_data-Weight_07 = wa_numtab-value_from.
+    WHEN 'WIDTH_08'.
+      wa_rekl_data-width_08 = wa_numtab-value_from.
+    WHEN 'HEIGHT_08'.
+      wa_rekl_data-height_08 = wa_numtab-value_from.
+    WHEN 'LENGTH_08'.
+      wa_rekl_data-Length_08 = wa_numtab-value_from.
+    WHEN 'WEIGHT_08'.
+      wa_rekl_data-Weight_08 = wa_numtab-value_from.
+    WHEN 'WIDTH_09'.
+      wa_rekl_data-width_09 = wa_numtab-value_from.
+    WHEN 'HEIGHT_09'.
+      wa_rekl_data-height_09 = wa_numtab-value_from.
+    WHEN 'LENGTH_09'.
+      wa_rekl_data-Length_09 = wa_numtab-value_from.
+    WHEN 'WEIGHT_09'.
+      wa_rekl_data-Weight_09 = wa_numtab-value_from.
+  ENDCASE.
+  ENDLOOP.
+
+
       ENDIF.
 
       wa_rekl_data-scol = lt_color.
 
+
+
       APPEND wa_rekl_data TO i_rekl_data.
       CLEAR: wa_rekl_data.
+
     ENDLOOP.
 
 CLEAR: wa_vbrp, wa_vbrk, wa_vbap, wa_konv.
