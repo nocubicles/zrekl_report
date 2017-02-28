@@ -11,13 +11,6 @@ data: gr_events type ref to cl_salv_events_table.
 DATA: COLOR TYPE LVC_S_COLO.
 data: key        type salv_s_layout_key.
 Data: i_vbap TYPE STANDARD TABLE OF vbap.
-*
-*----------------------------------------------------------------------*
-*       CLASS lcl_report DEFINITION
-*----------------------------------------------------------------------*
-CLASS automatitic_ALV DEFINITION.
-
-  PUBLIC SECTION.
 
 DATA: itab type standard table of mara,
 i_conftab TYPE TABLE OF CONF_OUT,
@@ -34,6 +27,23 @@ wa_vbak TYPE vbak,
 wa_aufk TYPE aufk,
 wa_mseg TYPE mseg,
 h_labour_perc TYPE f VALUE '0.15'.
+
+DATA: o_alv TYPE REF TO cl_salv_table,
+      alv               TYPE REF TO cl_gui_alv_grid,
+      ccontrol          TYPE REF TO cl_gui_custom_container,
+      functions         TYPE REF TO cl_salv_functions_list,
+      ls_color   TYPE lvc_s_scol,
+      lt_color   TYPE lvc_t_scol.
+
+*
+*----------------------------------------------------------------------*
+*       CLASS lcl_report DEFINITION
+*----------------------------------------------------------------------*
+CLASS automatitic_ALV DEFINITION.
+
+  PUBLIC SECTION.
+
+
 *
 *TYPES: BEGIN OF ty_vbap,
 *  vbelv TYPE vbap-vbelv,
@@ -46,41 +56,24 @@ h_labour_perc TYPE f VALUE '0.15'.
 
 
 TYPES: BEGIN OF ty_rekl_data,
-  matnr TYPE matnr,
   vbelv TYPE vbelv,
   posnr TYPE posnr,
-  atnam TYPE atnam,
-  atbez TYPE atbez,
-  atwrt TYPE atwrt,
-  billingdoc TYPE vbeln,
-  billingpos TYPE posnr,
-  reklprice TYPE kbetr,
-  rekllabour TYPE kbetr,
-  deliverynum TYPE vbeln,
-  deliveryitem TYPE vbeln,
   soldto TYPE kunnr,
   soldtodesc TYPE name1,
   shipto TYPE kunnr,
   shiptodesc TYPE name1,
+  matnr TYPE matnr,
+  matdesc TYPE vbap-arktx,
+  ponumber TYPE vbak-BSTNK,
   createdby TYPE ernam,
-  salesgroup TYPE VKGRP,
-  goodsissuedate TYPE WADAT_IST,
+  prodbatch TYPE mseg-charg,
+  quantity TYPE KWMENG,
+  shipcond TYPE VBAK-VSBED,
+  shipconddesc TYPE vtext,
   scol  TYPE lvc_t_scol,
   col   TYPE lvc_col,    " color 1-7
   int   TYPE lvc_int,    " intensified 0-1
   inv   TYPE lvc_inv,
-  prodorder TYPE aufnr,
-  prodbatch TYPE mseg-charg,
-  salesgroupdesc TYPE bezei,
-  shipcond TYPE VBAK-VSBED,
-  shipconddesc TYPE vtext,
-  requesteddate TYPE vbak-VDATU,
-  ponumber TYPE vbak-BSTNK,
-  matdesc TYPE vbap-arktx,
-  finishdate TYPE afko-gltrs,
-  salesordcreationdate TYPE erdat,
-  salesordtracknr TYPE VBKD-IHREZ,
-  rejection TYPE vbap-abgru,
 END OF ty_rekl_data.
 
 DATA: wa_rekl_data type ty_rekl_data.
@@ -88,12 +81,6 @@ DATA: wa_rekl_data type ty_rekl_data.
 DATA: i_rekl_data type standard table of ty_rekl_data.
 DATA: i2_rekl_data type standard table of ty_rekl_data.
 
-    DATA: o_alv TYPE REF TO cl_salv_table,
-      alv               TYPE REF TO cl_gui_alv_grid,
-      ccontrol          TYPE REF TO cl_gui_custom_container,
-      functions         TYPE REF TO cl_salv_functions_list,
-      ls_color   TYPE lvc_s_scol,
-      lt_color   TYPE lvc_t_scol.
 
     METHODS:
 
@@ -154,7 +141,7 @@ CLASS automatitic_ALV IMPLEMENTATION.
 *
   METHOD get_data.
 
-    SELECT vbelv posnr arktx FROM vbap INTO CORRESPONDING FIELDS OF wa_vbap WHERE matnr = p_matnr.
+    SELECT vbelv posnr arktx KWMENG FROM vbap INTO CORRESPONDING FIELDS OF wa_vbap WHERE matnr = p_matnr.
     SELECT erdat FROM vbak INTO CORRESPONDING FIELDS OF wa_vbap WHERE vbeln = wa_vbap-vbelv AND erdat IN s_date.
     APPEND wa_vbap TO i_vbap.
     ENDSELECT.
@@ -187,30 +174,19 @@ CLASS automatitic_ALV IMPLEMENTATION.
     SELECT * FROM LIKP INTO WA_LIKP WHERE VBELN = wa_lips-vbeln.
     ENDSELECT.
 
-
-CLEAR: i_conftab.
-
-IF NOT wa_vbap-cuobj IS INITIAL.
-
-    CALL FUNCTION 'VC_I_GET_CONFIGURATION'
-     EXPORTING
-       INSTANCE = wa_vbap-cuobj
-     TABLES
-        CONFIGURATION = i_conftab.
-ENDIF.
-
-DATA: count type i VALUE 0.
-
-CLEAR: count.
-
-    LOOP AT i_conftab INTO wa_conftab.
-
     CLEAR: wa_mseg, wa_aufk.
 
-    SELECT KUNNR FROM VBPA INTO wa_rekl_data-soldTo WHERE VBELN = wa_vbap-vbelv AND PARVW = 'AG'.
-    ENDSELECT.
 
-    SELECT BEZEI FROM TVGRT INTO wa_rekl_data-salesgroupdesc WHERE VKGRP = wa_vbak-VKGRP.
+    wa_rekl_data-vbelv = wa_vbap-vbelv.
+      wa_rekl_data-createdBy = wa_vbak-ernam.
+      wa_rekl_data-shipcond = wa_vbak-vsbed.
+      wa_rekl_data-ponumber = wa_vbak-BSTNK.
+      wa_rekl_data-matnr = p_matnr.
+      wa_rekl_data-matdesc = wa_vbap-arktx.
+      wa_rekl_data-posnr = wa_vbap-posnr.
+      wa_rekl_data-quantity = wa_vbap-KWMENG.
+
+    SELECT KUNNR FROM VBPA INTO wa_rekl_data-soldTo WHERE VBELN = wa_vbap-vbelv AND PARVW = 'AG'.
     ENDSELECT.
 
     SELECT vtext FROM tvsbt INTO wa_rekl_data-shipconddesc WHERE vsbed = wa_vbak-vsbed AND spras = 'E'.
@@ -225,70 +201,13 @@ CLEAR: count.
     SELECT NAME1 FROM KNA1 INTO wa_rekl_data-shipToDesc WHERE KUNNR = wa_rekl_data-shipTo.
     ENDSELECT.
 
-    SELECT IHREZ FROM VBKD INTO wa_rekl_data-salesordtracknr WHERE vbeln = wa_vbap-vbelv.
-    ENDSELECT.
-
     SELECT * FROM AUFK INTO WA_AUFK WHERE KDAUF = wa_vbap-vbelv AND KDPOS = wa_vbap-posnr.
     ENDSELECT.
-
-    IF NOT wa_aufk IS INITIAL.
-    SELECT * FROM MSEG INTO wa_mseg WHERE AUFNR = wa_aufk-aufnr AND matnr = p_matnr AND bwart = '101'.
-    ENDSELECT.
-    SELECT gltrs FROM afko INTO wa_rekl_data-finishdate WHERE aufnr = wa_aufk-aufnr.
-    ENDSELECT.
-    ENDIF.
-
-      count = count + 1.
-      wa_rekl_data-vbelv = wa_vbap-vbelv.
-      wa_rekl_data-rejection = wa_vbap-abgru.
-      wa_rekl_data-createdBy = wa_vbak-ernam.
-      wa_rekl_data-salesGroup = wa_vbak-VKGRP.
-      wa_rekl_data-shipcond = wa_vbak-vsbed.
-      wa_rekl_data-salesordcreationdate = wa_vbak-erdat.
-      wa_rekl_data-requesteddate = wa_vbak-VDATU.
-      wa_rekl_data-ponumber = wa_vbak-BSTNK.
-      wa_rekl_data-matnr = p_matnr.
-      wa_rekl_data-matdesc = wa_vbap-arktx.
-      wa_rekl_data-goodsIssueDate = wa_likp-WADAT_IST.
-      wa_rekl_data-posnr = wa_vbap-posnr.
-      wa_rekl_data-atnam = wa_conftab-atnam.
-      wa_rekl_data-atbez = wa_conftab-atbez.
-      wa_rekl_data-atwrt = wa_conftab-atwrt.
-
-      IF count = 1 AND NOT wa_konv-kbetr IS INITIAL.
-      wa_rekl_data-reklPrice = wa_konv-kbetr.
-      wa_rekl_data-reklLabour = wa_konv-kbetr * h_labour_perc.
-      ELSE.
-      wa_rekl_data-reklPrice = 0.
-      wa_rekl_data-reklLabour = 0.
-      ENDIF.
-
-      IF wa_aufk IS INITIAL.
-        wa_rekl_data-prodorder = 'No prod yet'.
-      ELSE.
-        wa_rekl_data-prodorder = wa_aufk-aufnr.
-      ENDIF.
 
       IF wa_mseg IS  INITIAL.
         wa_rekl_data-prodbatch = 'No batch yet'.
       ELSE.
         wa_rekl_data-prodbatch = wa_mseg-charg.
-      ENDIF.
-
-      IF wa_lips IS INITIAL.
-         wa_rekl_data-deliveryNum = 'No delivery yet'.
-         wa_rekl_data-deliveryItem = 'No delivery yet'.
-      ELSE.
-         wa_rekl_data-deliveryNum = wa_lips-vbeln.
-         wa_rekl_data-deliveryItem = wa_lips-posnr.
-      ENDIF.
-
-      IF wa_vbrp-vbeln IS INITIAL.
-        wa_rekl_data-billingDoc = 'No billing document yet'.
-        wa_rekl_data-billingPos = 'No billing document yet'.
-      ELSE.
-      wa_rekl_data-billingDoc = wa_vbrp-vbeln.
-      wa_rekl_data-billingPos = wa_vbrp-posnr.
       ENDIF.
 
       wa_rekl_data-scol = lt_color.
@@ -298,7 +217,6 @@ CLEAR: count.
     ENDLOOP.
 
 CLEAR: wa_vbrp, wa_vbrk, wa_vbap, wa_konv.
-    ENDLOOP.
 *
   ENDMETHOD.                    "get_data
 *.......................................................................
@@ -358,6 +276,47 @@ endform.                    " handle_user_command
 
 
 FORM GET_SELECTIONS.
+TYPES: BEGIN OF ty_rekl_data_details,
+  matnr TYPE matnr,
+  vbelv TYPE vbelv,
+  posnr TYPE posnr,
+  atnam TYPE atnam,
+  atbez TYPE atbez,
+  atwrt TYPE atwrt,
+  billingdoc TYPE vbeln,
+  billingpos TYPE posnr,
+  reklprice TYPE kbetr,
+  rekllabour TYPE kbetr,
+  deliverynum TYPE vbeln,
+  deliveryitem TYPE vbeln,
+  soldto TYPE kunnr,
+  soldtodesc TYPE name1,
+  shipto TYPE kunnr,
+  shiptodesc TYPE name1,
+  createdby TYPE ernam,
+  salesgroup TYPE VKGRP,
+  goodsissuedate TYPE WADAT_IST,
+  scol  TYPE lvc_t_scol,
+  col   TYPE lvc_col,    " color 1-7
+  int   TYPE lvc_int,    " intensified 0-1
+  inv   TYPE lvc_inv,
+  prodorder TYPE aufnr,
+  prodbatch TYPE mseg-charg,
+  salesgroupdesc TYPE bezei,
+  shipcond TYPE VBAK-VSBED,
+  shipconddesc TYPE vtext,
+  requesteddate TYPE vbak-VDATU,
+  ponumber TYPE vbak-BSTNK,
+  matdesc TYPE vbap-arktx,
+  finishdate TYPE afko-gltrs,
+  salesordcreationdate TYPE erdat,
+  salesordtracknr TYPE VBKD-IHREZ,
+  rejection TYPE vbap-abgru,
+END OF ty_rekl_data_details.
+
+DATA: wa_rekl_data_details type ty_rekl_data_details.
+
+DATA: i_rekl_data_details type standard table of ty_rekl_data_details.
 
 data: lr_selections type ref to cl_salv_selections,
       lt_rows       type salv_t_row.
@@ -383,7 +342,195 @@ LOOP AT <fs_table> into wa_row.
     read table i_vbap into wa_vbap index <fs_field>.
 ENDLOOP.
 
+    CLEAR: wa_vbrp, wa_vbrk, wa_konv, wa_lips, wa_vbak, wa_likp, wa_aufk, wa_mseg.
+
+    SELECT cuobj FROM vbap INTO CORRESPONDING FIELDS OF wa_vbap WHERE vbelv = wa_vbap-vbelv.
+    ENDSELECT.
+
+    SELECT * FROM vbrp INTO wa_vbrp WHERE AUBEL = wa_vbap-vbelv AND AUPOS = wa_vbap-posnr.
+    ENDSELECT.
+
+    SELECT * FROM VBRK INTO wa_vbrk WHERE VBELN = wa_vbrp-vbeln.
+    ENDSELECT.
+
+    SELECT * FROM KONV INTO WA_KONV WHERE KNUMV = WA_VBRK-KNUMV AND KPOSN = WA_VBRP-POSNR AND KSCHL = 'ZPIC'.
+    ENDSELECT.
+
+    SELECT * FROM LIPS INTO WA_LIPS WHERE VGBEL = wa_vbap-vbelv AND VGPOS = wa_vbap-posnr.
+    ENDSELECT.
+
+    SELECT * FROM VBAK INTO WA_VBAK WHERE VBELN = wa_vbap-vbelv.
+    ENDSELECT.
+
+    SELECT * FROM LIKP INTO WA_LIKP WHERE VBELN = wa_lips-vbeln.
+    ENDSELECT.
 
 
+CLEAR: i_conftab.
+
+IF NOT wa_vbap-cuobj IS INITIAL.
+
+    CALL FUNCTION 'VC_I_GET_CONFIGURATION'
+     EXPORTING
+       INSTANCE = wa_vbap-cuobj
+     TABLES
+        CONFIGURATION = i_conftab.
+ENDIF.
+
+LOOP AT <fs_table> into wa_row.
+    assign wa_row to <fs_field>.
+    read table i_vbap into wa_vbap index <fs_field>.
+
+    CLEAR: wa_vbrp, wa_vbrk, wa_konv, wa_lips, wa_vbak, wa_likp, wa_aufk, wa_mseg.
+
+    SELECT cuobj FROM vbap INTO CORRESPONDING FIELDS OF wa_vbap WHERE vbelv = wa_vbap-vbelv.
+    ENDSELECT.
+
+    SELECT * FROM vbrp INTO wa_vbrp WHERE AUBEL = wa_vbap-vbelv AND AUPOS = wa_vbap-posnr.
+    ENDSELECT.
+
+    SELECT * FROM VBRK INTO wa_vbrk WHERE VBELN = wa_vbrp-vbeln.
+    ENDSELECT.
+
+    SELECT * FROM KONV INTO WA_KONV WHERE KNUMV = WA_VBRK-KNUMV AND KPOSN = WA_VBRP-POSNR AND KSCHL = 'ZPIC'.
+    ENDSELECT.
+
+    SELECT * FROM LIPS INTO WA_LIPS WHERE VGBEL = wa_vbap-vbelv AND VGPOS = wa_vbap-posnr.
+    ENDSELECT.
+
+    SELECT * FROM VBAK INTO WA_VBAK WHERE VBELN = wa_vbap-vbelv.
+    ENDSELECT.
+
+    SELECT * FROM LIKP INTO WA_LIKP WHERE VBELN = wa_lips-vbeln.
+    ENDSELECT.
+
+
+CLEAR: i_conftab.
+
+IF NOT wa_vbap-cuobj IS INITIAL.
+
+    CALL FUNCTION 'VC_I_GET_CONFIGURATION'
+     EXPORTING
+       INSTANCE = wa_vbap-cuobj
+     TABLES
+        CONFIGURATION = i_conftab.
+ENDIF.
+
+DATA: count type i VALUE 0.
+
+CLEAR: count.
+
+    LOOP AT i_conftab INTO wa_conftab.
+
+    CLEAR: wa_mseg, wa_aufk.
+
+    SELECT KUNNR FROM VBPA INTO wa_rekl_data_details-soldTo WHERE VBELN = wa_vbap-vbelv AND PARVW = 'AG'.
+    ENDSELECT.
+
+    SELECT BEZEI FROM TVGRT INTO wa_rekl_data_details-salesgroupdesc WHERE VKGRP = wa_vbak-VKGRP.
+    ENDSELECT.
+
+    SELECT vtext FROM tvsbt INTO wa_rekl_data_details-shipconddesc WHERE vsbed = wa_vbak-vsbed AND spras = 'E'.
+    ENDSELECT.
+
+    SELECT NAME1 FROM KNA1 INTO wa_rekl_data_details-soldToDesc WHERE KUNNR = wa_rekl_data_details-soldTo.
+    ENDSELECT.
+
+    SELECT KUNNR FROM VBPA INTO wa_rekl_data_details-shipTo WHERE VBELN = wa_vbap-vbelv AND PARVW = 'WE'.
+    ENDSELECT.
+
+    SELECT NAME1 FROM KNA1 INTO wa_rekl_data_details-shipToDesc WHERE KUNNR = wa_rekl_data_details-shipTo.
+    ENDSELECT.
+
+    SELECT IHREZ FROM VBKD INTO wa_rekl_data_details-salesordtracknr WHERE vbeln = wa_vbap-vbelv.
+    ENDSELECT.
+
+    SELECT * FROM AUFK INTO WA_AUFK WHERE KDAUF = wa_vbap-vbelv AND KDPOS = wa_vbap-posnr.
+    ENDSELECT.
+
+    IF NOT wa_aufk IS INITIAL.
+    SELECT * FROM MSEG INTO wa_mseg WHERE AUFNR = wa_aufk-aufnr AND matnr = p_matnr AND bwart = '101'.
+    ENDSELECT.
+    SELECT gltrs FROM afko INTO wa_rekl_data_details-finishdate WHERE aufnr = wa_aufk-aufnr.
+    ENDSELECT.
+    ENDIF.
+
+      count = count + 1.
+      wa_rekl_data_details-vbelv = wa_vbap-vbelv.
+      wa_rekl_data_details-rejection = wa_vbap-abgru.
+      wa_rekl_data_details-createdBy = wa_vbak-ernam.
+      wa_rekl_data_details-salesGroup = wa_vbak-VKGRP.
+      wa_rekl_data_details-shipcond = wa_vbak-vsbed.
+      wa_rekl_data_details-salesordcreationdate = wa_vbak-erdat.
+      wa_rekl_data_details-requesteddate = wa_vbak-VDATU.
+      wa_rekl_data_details-ponumber = wa_vbak-BSTNK.
+      wa_rekl_data_details-matnr = p_matnr.
+      wa_rekl_data_details-matdesc = wa_vbap-arktx.
+      wa_rekl_data_details-goodsIssueDate = wa_likp-WADAT_IST.
+      wa_rekl_data_details-posnr = wa_vbap-posnr.
+      wa_rekl_data_details-atnam = wa_conftab-atnam.
+      wa_rekl_data_details-atbez = wa_conftab-atbez.
+      wa_rekl_data_details-atwrt = wa_conftab-atwrt.
+
+      IF count = 1 AND NOT wa_konv-kbetr IS INITIAL.
+      wa_rekl_data_details-reklPrice = wa_konv-kbetr.
+      wa_rekl_data_details-reklLabour = wa_konv-kbetr * h_labour_perc.
+      ELSE.
+      wa_rekl_data_details-reklPrice = 0.
+      wa_rekl_data_details-reklLabour = 0.
+      ENDIF.
+
+      IF wa_aufk IS INITIAL.
+        wa_rekl_data_details-prodorder = 'No prod yet'.
+      ELSE.
+        wa_rekl_data_details-prodorder = wa_aufk-aufnr.
+      ENDIF.
+
+      IF wa_mseg IS  INITIAL.
+        wa_rekl_data_details-prodbatch = 'No batch yet'.
+      ELSE.
+        wa_rekl_data_details-prodbatch = wa_mseg-charg.
+      ENDIF.
+
+      IF wa_lips IS INITIAL.
+         wa_rekl_data_details-deliveryNum = 'No delivery yet'.
+         wa_rekl_data_details-deliveryItem = 'No delivery yet'.
+      ELSE.
+         wa_rekl_data_details-deliveryNum = wa_lips-vbeln.
+         wa_rekl_data_details-deliveryItem = wa_lips-posnr.
+      ENDIF.
+
+      IF wa_vbrp-vbeln IS INITIAL.
+        wa_rekl_data_details-billingDoc = 'No billing document yet'.
+        wa_rekl_data_details-billingPos = 'No billing document yet'.
+      ELSE.
+      wa_rekl_data_details-billingDoc = wa_vbrp-vbeln.
+      wa_rekl_data_details-billingPos = wa_vbrp-posnr.
+      ENDIF.
+
+      APPEND wa_rekl_data_details TO i_rekl_data_details.
+      CLEAR: wa_rekl_data_details.
+    ENDLOOP.
+
+CLEAR: wa_vbrp, wa_vbrk, wa_vbap, wa_konv.
+ENDLOOP.
+
+if sy-subrc = 0.
+  try.
+      cl_salv_table=>factory(
+        importing
+          r_salv_table = o_alv
+        changing
+          t_table      = i_rekl_data_details ).
+    catch cx_salv_msg.                                  "#EC NO_HANDLER
+  endtry.
+
+      o_alv->set_screen_popup( start_column = 1
+                                         end_column   = 100
+                                         start_line   = 1
+                                         end_line     = 20 ).
+      o_alv->display( ).
+
+    endif.
 
 ENDFORM.
